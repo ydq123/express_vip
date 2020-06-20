@@ -152,13 +152,52 @@ router.post("/updatecard", upload.single("avatar"), (req, res, next) => {
     });
 });
 
+// 编辑新增会员协议、约课说明
+router.post("/member_agreement", (req, res, next) => {
+  const body = req.body;
+  const sql = `select count(*) sum from vip_explain where user_id = ${body.user_id}`;
+  queryOne(sql)
+    .then((result) => {
+      let sql = "";
+      let num = result.sum;
+      if (num > 0) {
+        sql = `UPDATE vip_explain SET content = '${body.content}' where user_id = '${body.user_id}'`;
+      } else {
+        sql = `insert into vip_explain (user_id, type, content) values ('${body.user_id}', 
+      '${body.type}', '${body.content}');`;
+      }
+      queryOne(sql)
+        .then((results) => {
+          new Result(results, "成功").success(res);
+        })
+        .catch((err) => {
+          new Result(err, "失败").fail(res);
+        });
+    })
+    .catch((err) => {
+      new Result(err, "操作错误").fail(res);
+    });
+});
+// 获取会员协议、约课说明
+router.get("/get_member_agreement", (req, res, next) => {
+  const query = req.query;
+  const sql = `SELECT * FROM vip_explain WHERE user_id = '${query.user_id}' and type = '${query.type}'`;
+  querySql(sql)
+    .then((result) => {
+      new Result(result, "成功").success(res);
+    })
+    .catch((err) => {
+      new Result(err, "失败").fail(res);
+    });
+});
+
 // 会员分类管理
 // 列表
 router.get("/getclasscard", (req, res, next) => {
   const query = req.query;
   let idsql = "";
   if (query.id) {
-    idsql = `AND id = ${query.id}`;
+    idsql = `AND id in (${query.id})`;
   }
   const sql = `select * from member_card_class where user_id = ${query.user_id} ${idsql}`;
   querySql(sql)
@@ -178,8 +217,9 @@ router.post("/addclasscard", (req, res, next) => {
     '${body.use_count_week}', '${body.classify}', '${body.classify_start_date}', 
     '${body.classify_end_date}', '${body.use_count}', '${body.isGive}', '${body.card_integral}',
     '${body.card_money}', '${body.card_course}');`;
-  queryOne(sql)
+  querySql(sql)
     .then((result) => {
+      result = { id: result.insertId };
       new Result(result, "新增数据成功").success(res);
     })
     .catch((err) => {
@@ -263,6 +303,59 @@ router.post("/update_dept", (req, res, next) => {
     });
 });
 
+// 店铺关注者 会员
+router.get("/followers", (req, res, next) => {
+  const query = req.query;
+  const str = query.type ? `AND u.type = '${query.type}'` : "";
+  const sql = `SELECT u.id id, i.id user_id, i.username username, i.realname realname, i.sex sex FROM 
+  user_focus_dept u join user_infomation i on u.user_id = i.id WHERE u.dept_no = ${query.dept_no} ${str};`;
+  querySql(sql)
+    .then((result) => {
+      new Result(result, "获取数据成功").success(res);
+    })
+    .catch((err) => {
+      new Result(err, "获取数据失败").fail(res);
+    });
+});
+// 群发消息
+router.post("/sends_msg", (req, res, next) => {
+  const body = req.body;
+  const sql = `INSERT INTO notice_news (user_id, type, msgContent)
+  VALUES ('${body.user_id}', '${body.type}', '${body.msgContent}');`;
+  queryOne(sql)
+    .then((result) => {
+      new Result(result, "群发消息成功").success(res);
+    })
+    .catch((err) => {
+      new Result(err, "群发消息失败").fail(res);
+    });
+});
+// 切换关注者身份
+router.post("/switch_people", (req, res, next) => {
+  const body = req.body;
+  const sql = `UPDATE user_focus_dept SET type = '${body.type}' WHERE id = '${body.id}';`;
+  queryOne(sql)
+    .then((result) => {
+      new Result(result, "修改成功").success(res);
+    })
+    .catch((err) => {
+      new Result(err, "修改失败").fail(res);
+    });
+});
+// 修改关注者信息
+router.post("/update_people", (req, res, next) => {
+  const body = req.body;
+  const sql = `UPDATE user_infomation SET realname = '${body.realname}', tel = '${body.tel}'
+   WHERE id = '${body.id}';`;
+  queryOne(sql)
+    .then((result) => {
+      new Result(result, "修改成功").success(res);
+    })
+    .catch((err) => {
+      new Result(err, "修改失败").fail(res);
+    });
+});
+
 // 课程管理
 router.get("/getcourse", (req, res, next) => {
   const query = req.query;
@@ -274,7 +367,6 @@ router.get("/getcourse", (req, res, next) => {
   t.user_id as list_user_id, t.courses_id as courses_id, t.type as type, t.id as apponint_id 
   from courses c left join courses_appointment t on c.id = t.courses_id where c.user_id 
   = '${query.user_id}' ${condition};`;
-  console.log(sql);
   querySql(sql)
     .then((result) => {
       new Result(result, "获取数据成功").success(res);
@@ -501,6 +593,35 @@ router.get("/join_people", (req, res, next) => {
   const sql = `SELECT u.id, u.sex, u.style_msg, u.username, u.user_home_bg FROM user_infomation
    u JOIN activitys_join a on a.user_id = u.id WHERE a.activitys_id = ${query.activitys_id}`;
   querySql(sql)
+    .then((result) => {
+      new Result(result, "获取数据成功").success(res);
+    })
+    .catch((err) => {
+      new Result(err, "获取数据失败").fail(res);
+    });
+});
+
+// 商家拉黑用户
+router.post("/join_black", (req, res, next) => {
+  const body = req.body;
+  if (body.user_id == body.dept_no) {
+    return new Result("不能拉黑自己").fail(res);
+  }
+  const sql = `insert into blacklist (dept_no, user_id) values ('${body.dept_no}', '${body.user_id}');`;
+  queryOne(sql)
+    .then((result) => {
+      new Result(result, "拉黑成功").success(res);
+    })
+    .catch((err) => {
+      new Result(err, "拉黑失败").fail(res);
+    });
+});
+// 判断是否被拉黑
+router.get("/isblack", (req, res, next) => {
+  const query = req.query;
+  const sql = `SELECT IF(COUNT(*), 'true', 'false') as isShow FROM blacklist WHERE
+   dept_no = '${query.dept_no}' AND user_id = '${query.user_id}';`;
+  queryOne(sql)
     .then((result) => {
       new Result(result, "获取数据成功").success(res);
     })

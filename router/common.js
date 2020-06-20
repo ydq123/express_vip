@@ -10,7 +10,7 @@ const Result = require("../utils/Result.js");
 router.post("/login", (req, res, next) => {
   const body = req.body;
   // 判断注册还是登录
-  let sql = `SELECT COUNT(*) as num FROM user_infomation WHERE openid = ${body.openid};`;
+  let sql = `SELECT COUNT(*) as num, id as userId FROM user_infomation WHERE openid = ${body.openid};`;
   queryOne(sql)
     .then((result) => {
       // jwt生成token
@@ -19,15 +19,17 @@ router.post("/login", (req, res, next) => {
       let token = jwt.sign(content, secretOrPrivateKey, {
         expiresIn: "1m", // 一周过期
       });
-      let num = result.num;
+      let { num } = result;
+      results = Object.assign(result, { token: token });
       if (num) {
-        res.json({ code: 1, message: "登陆成功", token: token });
+        new Result(results, "登录成功").success(res);
       } else {
         //注册
         let sql = `INSERT INTO user_infomation(openid, username, user_logo, sex) VALUES ('${body.openid}',
         '${body.username}', '${body.user_logo}', '${body.sex}');`;
-        queryOne(sql).then((result) => {
-          res.json({ code: 1, message: "注册成功", token: token });
+        querySql(sql).then((result) => {
+          results.userId = result.insertId;
+          new Result(results, "注册成功").success(res);
         });
       }
     })
@@ -42,7 +44,6 @@ router.get("/wxpay", (req, res) => {
   var mchid = "1446087902"; //商户号
   var mchkey = "8r435jVd7yA0354nsvkxb4cN3x7Se4322"; //密钥
   var wxurl = "http://XXXXXXXXX/weixinNotify.action";
-
   // 前端传过来的参数
   let orderCode = req.query.orderCode;
   let money = req.query.money;
