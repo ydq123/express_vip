@@ -9,7 +9,7 @@ const { serverIp, upload } = require("../conf");
 router.post("/setbanner", upload.single("avatar"), (req, res, next) => {
   let body = req.body;
   let file = req.file;
-  let banner_img = serverIp + file.path.replace(/\\/g, "/");
+  let banner_img = file.path.replace(/\\/g, "/");
   const sql = `insert into dept_banner (user_id, banner_url, banner_img) VALUES
    ('${body.user_id}', '${body.banner_url}', '${banner_img}');`;
   queryOne(sql)
@@ -23,7 +23,7 @@ router.post("/setbanner", upload.single("avatar"), (req, res, next) => {
 router.post("/updatebanner", upload.single("avatar"), (req, res, next) => {
   const body = req.body;
   let file = req.file;
-  let banner_img = serverIp + file.path.replace(/\\/g, "/");
+  let banner_img = file.path.replace(/\\/g, "/");
   if (!body.id || !body.user_id) {
     new Result("数据id或用户id为空").fail(res);
   } else {
@@ -81,7 +81,7 @@ router.get("/gethome", (req, res, next) => {
 router.post("/updatehome", upload.single("avatar"), (req, res, next2) => {
   const body = req.body;
   let file = req.file;
-  let img = serverIp + file.path.replace(/\\/g, "/");
+  let img = file.path.replace(/\\/g, "/");
   const sql = `UPDATE user_infomation SET busines_address = '${body.busines_address}',
   busines_pass = '${body.busines_pass}', busines_phone = '${body.busines_phone}',
   busines_msg = '${body.busines_msg}', busines_bg = '${img}' where id = '${body.id}'`;
@@ -98,11 +98,17 @@ router.post("/updatehome", upload.single("avatar"), (req, res, next2) => {
 router.get("/getcard", (req, res, next) => {
   const query = req.query;
   let idsql = "";
+  let namesql = "";
   if (query.id) {
     idsql = `AND m.id = ${query.id}`;
   }
-  const sql = `select m.*, m2.class_name, m2.class_price from member_card m JOIN 
-  member_card_class m2 on m.card_class_id = m2.id where m.user_id = ${query.user_id} ${idsql}`;
+  if (query.card_name) {
+    namesql = `AND m.card_name like '%${query.card_name}%'`;
+  }
+  const sql = `select m.*, m2.class_name, m2.class_price, u.busines_logo, u.busines_name from member_card
+   m JOIN member_card_class m2 join user_infomation u on m.card_class_id = m2.id and u.id =
+  m.user_id where m.user_id = ${query.user_id} ${idsql} ${namesql}`;
+  console.log(sql);
   querySql(sql)
     .then((result) => {
       new Result(result, "获取数据成功").success(res);
@@ -114,10 +120,10 @@ router.get("/getcard", (req, res, next) => {
 router.post("/addcard", upload.single("avatar"), (req, res, next) => {
   let body = req.body;
   let file = req.file;
-  let img = serverIp + file.path.replace(/\\/g, "/");
+  let img = file.path.replace(/\\/g, "/");
   const sql = `INSERT INTO member_card (user_id, card_name, card_bg_url, card_type, 
     card_class_id) VALUES ('${body.user_id}', '${body.card_name}', '${img}', '${body.card_type}', 
-    '${body.card_class_id}');`;
+    ${body.card_class_id});`;
   queryOne(sql)
     .then((result) => {
       new Result(result, "新增数据成功").success(res);
@@ -140,7 +146,7 @@ router.get("/delecard", (req, res, next) => {
 router.post("/updatecard", upload.single("avatar"), (req, res, next) => {
   const body = req.body;
   let file = req.file;
-  let img = serverIp + file.path.replace(/\\/g, "/");
+  let img = file.path.replace(/\\/g, "/");
   const sql = `UPDATE member_card SET card_name = '${body.card_name}', card_type = '${body.card_type}'
   , card_class_id = '${body.card_class_id}', card_bg_url = '${img}' where id = '${body.id}'`;
   queryOne(sql)
@@ -152,16 +158,18 @@ router.post("/updatecard", upload.single("avatar"), (req, res, next) => {
     });
 });
 
-// 编辑新增会员协议、约课说明
+// 编辑新增会员协议、约课说明、平台反馈
 router.post("/member_agreement", (req, res, next) => {
   const body = req.body;
-  const sql = `select count(*) sum from vip_explain where user_id = ${body.user_id}`;
+  const sql = `select count(*) sum from vip_explain where user_id = '${body.user_id}'
+  and type = '${body.type}'`;
   queryOne(sql)
     .then((result) => {
       let sql = "";
       let num = result.sum;
       if (num > 0) {
-        sql = `UPDATE vip_explain SET content = '${body.content}' where user_id = '${body.user_id}'`;
+        sql = `UPDATE vip_explain SET content = '${body.content}' where user_id = '${body.user_id}' 
+        and type = '${body.type}'`;
       } else {
         sql = `insert into vip_explain (user_id, type, content) values ('${body.user_id}', 
       '${body.type}', '${body.content}');`;
@@ -367,6 +375,7 @@ router.get("/getcourse", (req, res, next) => {
   t.user_id as list_user_id, t.courses_id as courses_id, t.type as type, t.id as apponint_id 
   from courses c left join courses_appointment t on c.id = t.courses_id where c.user_id 
   = '${query.user_id}' ${condition};`;
+  console.log(sql);
   querySql(sql)
     .then((result) => {
       new Result(result, "获取数据成功").success(res);
@@ -378,7 +387,7 @@ router.get("/getcourse", (req, res, next) => {
 router.post("/addcourse", upload.single("avatar"), (req, res, next) => {
   let body = req.body;
   let file = req.file;
-  let img = serverIp + file.path.replace(/\\/g, "/");
+  let img = file.path.replace(/\\/g, "/");
   const sql = `INSERT INTO courses (user_id, course_name, course_img, course_tearch, 
   course_start_date, course_end_date, course_date, count_people, address, msg) 
   VALUES ('${body.user_id}', '${body.course_name}', '${img}', '${body.course_tearch}',
@@ -406,7 +415,7 @@ router.get("/delecourse", (req, res, next) => {
 router.post("/updatecourse", upload.single("avatar"), (req, res, next) => {
   const body = req.body;
   let file = req.file;
-  let img = serverIp + file.path.replace(/\\/g, "/");
+  let img = file.path.replace(/\\/g, "/");
   const sql = `UPDATE courses SET course_name = '${body.course_name}',
   course_img = '${img}', course_tearch = '${body.course_tearch}', msg = '${body.msg}',
   course_start_date = '${body.course_start_date}', course_end_date = '${body.course_end_date}', 
@@ -425,7 +434,7 @@ router.post("/updatecourse", upload.single("avatar"), (req, res, next) => {
 router.post("/add_work", upload.single("avatar"), (req, res, next) => {
   let body = req.body;
   let file = req.file;
-  let video = serverIp + file.path.replace(/\\/g, "/");
+  let video = file.path.replace(/\\/g, "/");
   const sql = `INSERT INTO works (user_id,work_title, work_url) VALUES ('${body.user_id}',
   '${body.work_title}', '${video}');`;
   queryOne(sql)
@@ -438,7 +447,11 @@ router.post("/add_work", upload.single("avatar"), (req, res, next) => {
 });
 router.get("/get_work", (req, res, next) => {
   const query = req.query;
-  const sql = `select * from works where user_id = ${query.user_id}`;
+  let namesql = "";
+  if (query.get_work_name) {
+    namesql = `AND work_title like '%${query.get_work_name}%'`;
+  }
+  const sql = `select * from works where user_id = ${query.user_id} ${namesql}`;
   querySql(sql)
     .then((result) => {
       new Result(result, "获取数据成功").success(res);
@@ -500,7 +513,7 @@ router.get("/getComment", (req, res, next) => {
 router.post("/add_activity", upload.single("avatar"), (req, res, next) => {
   let body = req.body;
   let file = req.file;
-  let img = serverIp + file.path.replace(/\\/g, "/");
+  let img = file.path.replace(/\\/g, "/");
   const sql = `INSERT INTO activitys (user_id, activity_img,activity_title, activity_content) VALUES 
   ('${body.user_id}', '${img}','${body.activity_title}', '${body.activity_content}');`;
   queryOne(sql)
@@ -514,9 +527,13 @@ router.post("/add_activity", upload.single("avatar"), (req, res, next) => {
 // 活动列表
 router.get("/get_activity", (req, res, next) => {
   const query = req.query;
+  let namesql = '';
+  if (query.get_activity_name) {
+    namesql = `AND activity_title like '%${query.get_activity_name}%'`;
+  }
   const sql = `select activitys.*,(select count(activitys_join.activitys_id) from 
   activitys_join where activitys.id=activitys_join.activitys_id) join_num from activitys 
-  WHERE user_id =  ${query.user_id}`;
+  WHERE user_id =  ${query.user_id} ${namesql}`;
   querySql(sql)
     .then((result) => {
       new Result(result, "获取数据成功").success(res);
